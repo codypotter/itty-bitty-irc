@@ -10,5 +10,10 @@
   "keywords": [],
   "author": "Cody Potter and Bela K.",
   "license": "ISC",
-  "dependencies": {}
+  "dependencies": {
+    "async": "^3.2.0",
+    "chalk": "^4.0.0",
+    "commander": "^5.1.0",
+    "inquirer": "^7.1.0"
+  }
 }
