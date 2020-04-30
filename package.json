@@ -1,0 +1,14 @@
+{
+  "name": "itty-bitty-irc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "server": "node server.js",
+    "client": "node client.js"
+  },
+  "keywords": [],
+  "author": "Cody Potter and Bela K.",
+  "license": "ISC",
+  "dependencies": {}
+}
