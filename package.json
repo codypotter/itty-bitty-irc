@@ -8,7 +8,7 @@
     "client": "node client.js"
   },
   "keywords": [],
-  "author": "Cody Potter and Bela K.",
+  "author": "Cody Potter and Bela Kurzenhauser",
   "license": "ISC",
   "dependencies": {
     "async": "^3.2.0",
