@@ -2,10 +2,10 @@
   "name": "itty-bitty-irc",
   "version": "1.0.0",
   "description": "",
-  "main": "server.js",
+  "main": "Server.js",
   "scripts": {
-    "server": "node server.js",
-    "client": "node client.js"
+    "server": "node run-server.js",
+    "client": "node run-client.js"
   },
   "keywords": [],
   "author": "Cody Potter and Bela Kurzenhauser",
@@ -14,6 +14,7 @@
     "async": "^3.2.0",
     "chalk": "^4.0.0",
     "commander": "^5.1.0",
-    "inquirer": "^7.1.0"
+    "inquirer": "^7.1.0",
+    "uuid-v4": "^0.1.0"
   }
 }
