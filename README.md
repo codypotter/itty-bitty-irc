@@ -42,12 +42,12 @@ Open two terminals at the project root. One will be the server. The other will b
 
 In terminal 1, run
 ```shell script
-npm server
+npm run server
 ```
 
 In terminal 2, run
 ```shell script
-npm client
+npm run client
 ```
 
 Blam-o, you have web sockets running and a server and client sending messages back and forth.
