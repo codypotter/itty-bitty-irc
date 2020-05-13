@@ -53,3 +53,18 @@ npm run client
 Blam-o, you have web sockets running and a server and client sending messages back and forth.
 
 There is no magic happening here. If you open package.json, you'll see I defined two scripts, those are the scripts you just called. It's simply Node executing the two files. They are communicating on the same host and port.
+
+## TODO List
+1. User Registration
+    1. Client sends `USER <username> <hostname> <servername> <realname>` on connection to server.
+    2. Server instantiates a `User` object with all that data. 
+2. Create a room  
+    1. Client sends `CREATE "room name"` on room creation.  
+    2. Server instantiates a `Room` object.   
+        1. Check for duplicate rooms first.
+        2. Add `Room` object to `rooms` array.
+3. Join a room  
+    1. Client sends `JOIN "room name" "user id"` on room join.  
+    2. Server adds the user id to the `Room` object.  
+4. Send a message  
+a. Client sends `PRIVMSG "`

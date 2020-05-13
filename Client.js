@@ -26,6 +26,18 @@ module.exports = class Client {
         name: 'port',
         message: 'What PORT would you like to connect to?',
         default: '6969'
+      },
+      {
+        type: 'input',
+        name: 'username',
+        message: 'What is your username?',
+        default: 'username'
+      },
+      {
+        type: 'input',
+        name: 'realname',
+        message: 'What is your real name? (first and last)',
+        default: 'Jane Doe'
       }
     ]).then(function(answers) {
         this.host = answers.host;
@@ -33,6 +45,8 @@ module.exports = class Client {
 
         this.socket.connect(this.port, this.host, function() {
           console.log('CONNECTED TO: ' + this.host + ':' + this.port);
+          this.socket.write('USER ' + answers.username + ' :' + answers.realname + '\n');
+
         }.bind(this));
 
         this.promptCreateJoinRoom();
@@ -48,7 +62,7 @@ module.exports = class Client {
         name: 'createJoinRoom',
         message: 'What would you like to do?',
         choices: ['Create a room', 'Join a room']
-      }).then(function(answers) {
+      }).then((answers) => {
         switch (answers.createJoinRoom) {
           case 'Create a room':
             this.createRoom();
@@ -57,7 +71,7 @@ module.exports = class Client {
             this.joinRoom();
             break;
         }
-      }.bind(this)
+      }
     );
   }
 
@@ -74,14 +88,14 @@ module.exports = class Client {
         message: 'Do you want to join your channel now?',
         default: true
       }
-    ).then(function(answers) {
+    ).then((answers) => {
       this.socket.write('CREATE ' + answers.channelName + '\n');
 
       if (answers.channelJoin) {
         this.socket.write('JOIN ' + answers.channelName + '\n');
       }
 
-    }.bind(this));
+    });
   }
 
   joinRoom() {
@@ -97,14 +111,14 @@ module.exports = class Client {
         message: 'Do you want to join your channel now?',
         default: true
       }
-    ).then(function(answers) {
+    ).then((answers) => {
       this.socket.write('CREATE ' + answers.channelName + '\n');
 
       if (answers.channelJoin) {
         this.socket.write('JOIN ' + answers.channelName + '\n');
       }
 
-    }.bind(this));
+    });
   }
 
 };
