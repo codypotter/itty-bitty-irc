@@ -17,11 +17,30 @@ module.exports = class Client {
       horizontalLayout: 'default',
       verticalLayout: 'default'
     })));
+
     this.socket = new net.Socket();
     this.promptConnect();
     this.username = '';
     this.realname = '';
-    this.currentRoomName = '';
+    this.currentRoom = '';
+    this.rooms = [];
+
+    this.socket.on('error', (err) => {
+      ui.log.write('Error ' + err);
+      process.exitCode = 1;
+    });
+
+    // this.socket.on('end', () => {
+    //   ui.log.write('Connection ended gracefully. Exiting...');
+    //   this.socket.end();
+    //   process.exitCode = 0;
+    // });
+
+    this.socket.on('close', () => {
+      ui.log.write('connection closed');
+      this.socket.destroy();
+      process.exitCode = 0;
+    });
 
     this.socket.on('data', (data) => {
       const msg = data.toString();
@@ -33,12 +52,15 @@ module.exports = class Client {
           break;
         case 'RPLTOPIC':
           ui.log.write(chalk.green('Welcome to ' + extractwords(msg)[1]));
-          this.currentRoomName = extractwords(msg)[1];
+          this.currentRoom = extractwords(msg)[1];
           break;
         case 'RPLNAMEREPLY':
           ui.log.write(chalk.green('Current users in room: ') + extractwords(msg).slice(1).join(' '));
-          ui.log.write(chalk.green('Begin typing and press ENTER to send a message!'));
+          ui.log.write(chalk.green('Begin typing and press ENTER to send a message. Enter /quit to quit.'));
           this.promptMessaging();
+          break;
+        case 'ROOMDIR':
+          this.rooms = this.rooms.concat(extractwords(msg).slice(1));
           break;
         default:
           ui.log.write('Weird message received. Cannot parse.');
@@ -66,7 +88,14 @@ module.exports = class Client {
         type: 'input',
         name: 'username',
         message: 'What is your username?',
-        default: 'username'
+        default: 'username',
+        validate: (val) => {
+          if (val.match(/^\S*$/)) {
+            return true;
+          } else {
+            return 'one word, no spaces allowed'
+          }
+        }
       },
       {
         type: 'input',
@@ -86,7 +115,7 @@ module.exports = class Client {
           clear();
           this.promptCreateJoinRoom();
         });
-      ui.log.write(chalk.red('...Connecting...'));
+        ui.log.write(chalk.red('...Connecting...'));
 
       }
     );
@@ -141,12 +170,14 @@ module.exports = class Client {
   }
 
   joinRoom() {
+    console.log('current rooms are', this.rooms);
     inquirer.prompt(
       {
-        type: 'input',
+        type: 'list',
         name: 'roomName',
         message: 'What room do you want to join?',
-        default: 'roomname'
+        choices: this.rooms,
+        default: 0
       }
     ).then((answers) => {
       clear();
@@ -163,14 +194,21 @@ module.exports = class Client {
         prefix: ''
       }
     ).then((answers) => {
-      this.socket.write('PRIVMSG ' + this.username + ' ' + this.currentRoomName + ' ' + answers.privateMessage);
-      setTimeout(() => {
-        this.promptMessaging();
-      }, 1000);
+      let exit = false;
+      if (answers.privateMessage === '/quit') {
+        this.socket.end();
+        process.exitCode = 0;
+        exit = true;
+      }
+      if (!exit) {
+        this.socket.write('PRIVMSG ' + this.username + ' ' + this.currentRoom + ' ' + answers.privateMessage);
+        setTimeout(() => {
+          this.promptMessaging();
+        }, 1000);
+      }
     });
   }
+
 };
 
-// client.on('close', function() {
-//   console.log('Connection closed');
-// });
+//process.exit();

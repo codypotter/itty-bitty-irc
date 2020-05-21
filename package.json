@@ -1,11 +1,11 @@
 {
   "name": "itty-bitty-irc",
   "version": "1.0.0",
-  "description": "",
-  "main": "Server.js",
+  "description": "A small IRC-like implementation for CS494 at Portland State University",
+  "main": "main.js",
   "scripts": {
-    "server": "node run-server.js",
-    "client": "node run-client.js"
+    "server": "node main.js server",
+    "client": "node main.js client"
   },
   "keywords": [],
   "author": "Cody Potter and Bela Kurzenhauser",
