@@ -13,11 +13,11 @@ module.exports = class Server {
     this.server = net.createServer();
 
     this.server.on('close', () => {
-      console.log('Server has closed.');
+      console.log('Server is closing for some reason.');
     });
 
     this.server.on('error', (err) => {
-      console.log('Error: ' + err);
+      console.log('Server ' + err);
     });
 
     this.server.on('connection', (socket => {
@@ -25,13 +25,17 @@ module.exports = class Server {
 
       socket.write('ROOMDIR ' + this.rooms.map(room => room.name).join(' '));
 
-      socket.on('close', (error) => {
-        //todo: cleanup a user ending their connection (remove them from the users array and the room they were in)
+      socket.on('end', () => {
+        console.log('end received from client. Removing them from users and room');
+        let user = this.users.splice(this.users.findIndex(user => user.socket === socket), 1);
+        this.rooms.forEach(room => {
+          room.members.splice(room.members.findIndex(member => member === user.username), 1);
+        })
         socket.end();
       });
 
       socket.on('error', (err) => {
-        console.log('Error: ' + err.message);
+        console.log('Socket ' + err);
       });
 
       socket.on('data', (data) => {
@@ -80,10 +84,6 @@ module.exports = class Server {
             console.log('Weird message received. Cannot parse.');
         }
       })
-
-      socket.on('close', (data) => {
-        console.log('CLOSED: ' + socket.remoteAddress + ':' + socket.remotePort);
-      });
     }));
 
     this.server.listen(this.port, this.host);

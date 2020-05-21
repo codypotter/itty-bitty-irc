@@ -7,7 +7,6 @@ const extractwords = require('extractwords');
 
 let ui = new inquirer.ui.BottomBar();
 
-
 module.exports = class Client {
 
   constructor() {
@@ -30,15 +29,14 @@ module.exports = class Client {
       process.exitCode = 1;
     });
 
-    // this.socket.on('end', () => {
-    //   ui.log.write('Connection ended gracefully. Exiting...');
-    //   this.socket.end();
-    //   process.exitCode = 0;
-    // });
+    this.socket.on('end', () => {
+      ui.log.write('End Received from server.');
+      //this.socket.end();
+      process.exitCode = 0;
+    });
 
     this.socket.on('close', () => {
-      ui.log.write('connection closed');
-      this.socket.destroy();
+      ui.log.write('Connection is closed. Exiting...');
       process.exitCode = 0;
     });
 
@@ -57,6 +55,7 @@ module.exports = class Client {
         case 'RPLNAMEREPLY':
           ui.log.write(chalk.green('Current users in room: ') + extractwords(msg).slice(1).join(' '));
           ui.log.write(chalk.green('Begin typing and press ENTER to send a message. Enter /quit to quit.'));
+          ui.log.write(chalk.greenBright('____________________________________________________________________'));
           this.promptMessaging();
           break;
         case 'ROOMDIR':
@@ -210,5 +209,3 @@ module.exports = class Client {
   }
 
 };
-
-//process.exit();
