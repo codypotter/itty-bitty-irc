@@ -1,18 +1,53 @@
-var net = require('net');
-var inquirer = require('inquirer');
-var uuid = require('uuid-v4');
+const net = require('net');
+const inquirer = require('inquirer');
+const chalk = require('chalk');
+const clear = require('clear');
+const figlet = require('figlet');
+const extractwords = require('extractwords');
+
+let ui = new inquirer.ui.BottomBar();
+
 
 module.exports = class Client {
 
   constructor() {
-    this.uuid = uuid();
+    clear();
+    ui.log.write(chalk.green(figlet.textSync('itty-bitty-irc', {
+      font: 'Invita',
+      horizontalLayout: 'default',
+      verticalLayout: 'default'
+    })));
     this.socket = new net.Socket();
-
     this.promptConnect();
+    this.username = '';
+    this.realname = '';
+    this.currentRoomName = '';
+
+    this.socket.on('data', (data) => {
+      const msg = data.toString();
+      const msgType = extractwords(msg)[0]; // get first word
+
+      switch (msgType) {
+        case 'PRIVMSG':
+          ui.log.write(chalk.blue(extractwords(msg)[1]) + ': ' + extractwords(msg).slice(3).join(' '));
+          break;
+        case 'RPLTOPIC':
+          ui.log.write(chalk.green('Welcome to ' + extractwords(msg)[1]));
+          this.currentRoomName = extractwords(msg)[1];
+          break;
+        case 'RPLNAMEREPLY':
+          ui.log.write(chalk.green('Current users in room: ') + extractwords(msg).slice(1).join(' '));
+          ui.log.write(chalk.green('Begin typing and press ENTER to send a message!'));
+          this.promptMessaging();
+          break;
+        default:
+          ui.log.write('Weird message received. Cannot parse.');
+      }
+    });
   }
 
   promptConnect() {
-    // inquirer.prompt() is an asynchronous function. The function passed to .then() is called once the
+    // inquirer.ui.prompt() is an asynchronous function. The function passed to .then() is called once the
     // user inputs their answers.
     inquirer.prompt([
       {
@@ -39,19 +74,21 @@ module.exports = class Client {
         message: 'What is your real name? (first and last)',
         default: 'Jane Doe'
       }
-    ]).then(function(answers) {
+    ]).then((answers) => {
+        clear();
         this.host = answers.host;
         this.port = answers.port;
 
-        this.socket.connect(this.port, this.host, function() {
-          console.log('CONNECTED TO: ' + this.host + ':' + this.port);
-          this.socket.write('USER ' + answers.username + ' :' + answers.realname + '\n');
+        this.socket.connect(this.port, this.host, () => {
+          this.username = answers.username;
+          this.realname = answers.realname;
+          this.socket.write('USER ' + answers.username + ' :' + answers.realname);
+          clear();
+          this.promptCreateJoinRoom();
+        });
+      ui.log.write(chalk.red('...Connecting...'));
 
-        }.bind(this));
-
-        this.promptCreateJoinRoom();
-
-      }.bind(this)
+      }
     );
   }
 
@@ -63,6 +100,7 @@ module.exports = class Client {
         message: 'What would you like to do?',
         choices: ['Create a room', 'Join a room']
       }).then((answers) => {
+        clear();
         switch (answers.createJoinRoom) {
           case 'Create a room':
             this.createRoom();
@@ -76,25 +114,29 @@ module.exports = class Client {
   }
 
   createRoom() {
-    inquirer.prompt(
+    inquirer.prompt([
       {
         type: 'input',
-        name: 'channelName',
-        message: 'What do you want to name your channel?'
+        name: 'roomName',
+        message: 'What do you want to name your room?',
+        default: 'roomname'
       },
       {
         type: 'confirm',
-        name: 'channelJoin',
-        message: 'Do you want to join your channel now?',
+        name: 'roomJoin',
+        message: 'Do you want to join your room now?',
         default: true
-      }
+      }]
     ).then((answers) => {
-      this.socket.write('CREATE ' + answers.channelName + '\n');
+      clear();
+      this.socket.write('CREATE ' + answers.roomName);
 
-      if (answers.channelJoin) {
-        this.socket.write('JOIN ' + answers.channelName + '\n');
+      if (answers.roomJoin) {
+        clear();
+        this.socket.write('JOIN ' + answers.roomName + ' ' + this.username);
+      } else {
+        this.promptCreateJoinRoom()
       }
-
     });
   }
 
@@ -102,33 +144,33 @@ module.exports = class Client {
     inquirer.prompt(
       {
         type: 'input',
-        name: 'channelName',
-        message: 'What do you want to name your channel?'
-      },
-      {
-        type: 'confirm',
-        name: 'channelJoin',
-        message: 'Do you want to join your channel now?',
-        default: true
+        name: 'roomName',
+        message: 'What room do you want to join?',
+        default: 'roomname'
       }
     ).then((answers) => {
-      this.socket.write('CREATE ' + answers.channelName + '\n');
-
-      if (answers.channelJoin) {
-        this.socket.write('JOIN ' + answers.channelName + '\n');
-      }
-
+      clear();
+      this.socket.write('JOIN ' + answers.roomName + ' ' + this.username);
     });
   }
 
+  promptMessaging() {
+    inquirer.prompt(
+      {
+        type: 'input',
+        name: 'privateMessage',
+        message: this.username + ' > ',
+        prefix: ''
+      }
+    ).then((answers) => {
+      this.socket.write('PRIVMSG ' + this.username + ' ' + this.currentRoomName + ' ' + answers.privateMessage);
+      setTimeout(() => {
+        this.promptMessaging();
+      }, 1000);
+    });
+  }
 };
 
-//
-// client.on('data', function(data) {
-//   console.log('DATA: ' + data);
-//   client.destroy();
-// });
-//
 // client.on('close', function() {
 //   console.log('Connection closed');
 // });

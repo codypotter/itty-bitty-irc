@@ -13,9 +13,10 @@
   "dependencies": {
     "async": "^3.2.0",
     "chalk": "^4.0.0",
+    "clear": "^0.1.0",
     "commander": "^5.1.0",
     "extractwords": "^1.1.1",
-    "inquirer": "^7.1.0",
-    "uuid-v4": "^0.1.0"
+    "figlet": "^1.4.0",
+    "inquirer": "^7.1.0"
   }
 }

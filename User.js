@@ -1,9 +1,8 @@
 module.exports = class User {
-  constructor(username, hostname, realname) {
+  constructor(username, hostname, realname, socket) {
     this.username = username;
     this.hostname = hostname;
     this.realname = realname;
-
-    console.log("User created! " + username + ' ' + hostname + ' ' + realname);
+    this.socket = socket;
   }
 };

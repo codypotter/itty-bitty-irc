@@ -10,44 +10,69 @@ module.exports = class Server {
     this.port = endpoint.port;
     this.rooms = [];
     this.users = [];
+    this.server = net.createServer();
 
-    console.log('Running');
-    net.createServer((sock) => {
-      console.log('CONNECTED: ' + sock.remoteAddress + ':' + sock.remotePort);
+    this.server.on('close', () => {
+      console.log('Server has closed.');
+    });
 
-      sock.on('data', (data) => {
+    this.server.on('connection', (socket => {
+      console.log('CONNECTED: ' + socket.remoteAddress + ':' + socket.remotePort);
+
+      socket.on('data', (data) => {
         const msg = data.toString();
-        const msgType = extractwords(msg)[0]; // get first word
+        const msgType = extractwords(msg)[0];
+
+        console.log('message received: ' + msg);
 
         switch (msgType) {
           case 'CREATE':
+            console.log('creating a room named '+ extractwords(msg, )[1]);
+            this.rooms.push(new Room(extractwords(msg, )[1]));
             break;
           case 'JOIN':
+            console.log(extractwords(msg)[2] + ' joined a room named ' + extractwords(msg, )[1]);
+            this.rooms.forEach(room => {
+              if (room.name === extractwords(msg, )[1]) {
+                room.members.push(extractwords(msg)[2]);
+                socket.write('RPLTOPIC ' + room.name);
+                socket.write('RPLNAMEREPLY ' + room.members.join(' '))
+              }
+            });
             break;
           case 'USER':
-            this.createUser(extractwords(msg)[1], sock.remoteAddress +':' +  sock.remotePort, extractwords(msg)[2].slice(0) + ' ' + extractwords(msg)[3])
+            console.log('registering a user with username ' + extractwords(msg)[1] + ' and real name ' + extractwords(msg)[2]);
+            this.users.push(new User(extractwords(msg)[1], socket.remoteAddress +':' +  socket.remotePort, extractwords(msg)[2].slice(0) + ' ' + extractwords(msg)[3], socket));
             break;
           case 'PRIVMSG':
-            break;
-          case 'NICK':
+            console.log('received a privmsg from ' + extractwords(msg)[1] + ' to room named ' + extractwords(msg)[2] + ' with text ' + extractwords(msg)[3]);
+            this.rooms.forEach((room) => {
+              if (room.name === extractwords(msg)[2]) {
+                console.log('emitting a message to everyone in '+  room.name);
+                room.members.forEach((member) => {
+                  console.log('sending a message to ' + member);
+                  this.users.forEach(user => {
+                    if (user.username === member) {
+                      user.socket.write(msg);
+                    }
+                  });
+                });
+              }
+            })
+            //socket.write(msg);
             break;
           default:
             console.log('Weird message received. Cannot parse.');
         }
       })
 
-      sock.on('close', (data) => {
-        console.log('CLOSED: ' + sock.remoteAddress + ' ' + sock.remotePort);
+      socket.on('close', (data) => {
+        console.log('CLOSED: ' + socket.remoteAddress + ':' + socket.remotePort);
       });
+    }));
 
-    }).listen(endpoint.port, endpoint.host);
+    this.server.listen(this.port, this.host);
+
   }
 
-  createUser(username, hostname, realname) {
-    this.users.push(new User(username, hostname, realname));
-  }
-
-  createRoom(roomName) {
-    this.rooms.push(new Room(roomName));
-  }
 };
