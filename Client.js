@@ -110,7 +110,7 @@ module.exports = class Client {
         this.socket.connect(this.port, this.host, () => {
           this.username = answers.username;
           this.realname = answers.realname;
-          this.socket.write('USER ' + answers.username + ' :' + answers.realname);
+          this.socket.write('USER ' + answers.username + ' ' + answers.realname);
           clear();
           this.promptCreateJoinRoom();
         });
@@ -147,7 +147,14 @@ module.exports = class Client {
         type: 'input',
         name: 'roomName',
         message: 'What do you want to name your room?',
-        default: 'roomname'
+        default: 'roomname',
+        validate: (val) => {
+          if (val.match(/^\S*$/)) {
+            return true;
+          } else {
+            return 'one word, no spaces allowed'
+          }
+        }
       },
       {
         type: 'confirm',
@@ -201,6 +208,9 @@ module.exports = class Client {
       }
       if (!exit) {
         this.socket.write('PRIVMSG ' + this.username + ' ' + this.currentRoom + ' ' + answers.privateMessage);
+
+        // wait a second before prompting for another message
+        //    helps avoid spamming and keeps the UI looking nice
         setTimeout(() => {
           this.promptMessaging();
         }, 1000);
