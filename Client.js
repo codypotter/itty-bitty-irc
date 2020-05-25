@@ -44,12 +44,14 @@ module.exports = class Client {
       const msg = data.toString();
       const msgType = extractwords(msg)[0]; // get first word
 
+      //console.log(chalk.bgBlue(msg));
+
       switch (msgType) {
         case 'PRIVMSG':
           ui.log.write(chalk.blue(extractwords(msg)[1]) + ': ' + extractwords(msg).slice(3).join(' '));
           break;
         case 'RPLTOPIC':
-          ui.log.write(chalk.green('Welcome to ' + extractwords(msg)[1]));
+          ui.log.write(chalk.green('Welcome to ' + chalk.bgGreen.black(extractwords(msg)[1]) + '!'));
           this.currentRoom = extractwords(msg)[1];
           break;
         case 'RPLNAMEREPLY':
@@ -176,7 +178,6 @@ module.exports = class Client {
   }
 
   joinRoom() {
-    console.log('current rooms are', this.rooms);
     inquirer.prompt(
       {
         type: 'list',
