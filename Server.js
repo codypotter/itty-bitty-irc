@@ -18,6 +18,10 @@ module.exports = class Server {
 
     this.server.on('error', err => {
       console.log(chalk.bgRed('Server ' + err));
+      let matchingUser = this.users.filter(user => user.socket === socket)
+      this.rooms.forEach(room => {
+        rooms.members = room.members.filter(member => member !== matchingUser.username);
+      });
     });
 
     this.server.on('connection', (socket => {
@@ -54,7 +58,9 @@ module.exports = class Server {
             console.log('creating a room named', newRoomName);
 
             this.rooms.push(new Room(newRoomName));
-            socket.write('ROOMDIR ' + this.rooms.map(room => room.name).join(' '));
+            this.users.forEach((user) => {
+              user.socket.write('ROOMDIR ' + newRoomName);
+            });
             break;
           case 'JOIN':
             const roomToJoin = msg[1];
@@ -97,6 +103,27 @@ module.exports = class Server {
               }
             })
             break;
+          case 'USERLIST':
+            const roomName = msg[1];
+            const userListing = msg[2];
+            console.log('User ' + userListing + 'querying list from ' + roomName);
+
+            this.rooms.forEach(room => {
+              if (room.name === roomName) {
+                socket.write('USERLIST ' + room.members.join(' '))
+              }
+            });
+            break;
+          /*case 'LEAVE':
+            const roomToLeave = msg[1];
+            const userLeaving = msg[2];
+            console.log('User ' + userLeaving + 'leaving room ' + roomToLeave);
+            this.rooms.forEach(room => {
+              if (room.name === roomToLeave) {
+                room.members.splice(room.members.findIndex(member => member === userLeaving.username), 1);
+              }
+            })
+            break;*/
           default:
             console.log(chalk.red('Weird message received. Cannot parse.'));
         }

@@ -22,6 +22,7 @@ module.exports = class Client {
     this.username = '';
     this.realname = '';
     this.currentRoom = '';
+    this.activeRooms = [];
     this.rooms = [];
 
     this.socket.on('error', (err) => {
@@ -48,20 +49,24 @@ module.exports = class Client {
 
       switch (msgType) {
         case 'PRIVMSG':
-          ui.log.write(chalk.blue(extractwords(msg)[1]) + ': ' + extractwords(msg).slice(3).join(' '));
+          ui.log.write(chalk.blue(msg.split(' ')[1]) + ' (' + chalk.green(msg.split(' ')[2]) + '): ' + msg.split(' ').slice(3).join(' '));
           break;
         case 'RPLTOPIC':
-          ui.log.write(chalk.green('Welcome to ' + chalk.bgGreen.black(extractwords(msg)[1]) + '!'));
-          this.currentRoom = extractwords(msg)[1];
+          ui.log.write(chalk.green('Welcome to ' + chalk.bgGreen.black(msg.split(' ')[1]) + '!'));
+          this.currentRoom = msg.split(' ')[1];
           break;
         case 'RPLNAMEREPLY':
-          ui.log.write(chalk.green('Current users in room: ') + extractwords(msg).slice(1).join(' '));
-          ui.log.write(chalk.green('Begin typing and press ENTER to send a message. Enter /quit to quit.'));
+          ui.log.write(chalk.green('Current users in room: ') + msg.split(' ').slice(1).join(' '));
+          ui.log.write(chalk.green('Begin typing and press ENTER to send a message. Enter /quit to quit, or use /help to see other commands.'));
           ui.log.write(chalk.greenBright('____________________________________________________________________'));
           this.promptMessaging();
           break;
+        case 'USERLIST':
+          ui.log.write('Current users in room: ' + msg.split(' ').slice(1).join(' '));
+          this.promptMessaging();
+          break;
         case 'ROOMDIR':
-          this.rooms = this.rooms.concat(extractwords(msg).slice(1));
+          this.rooms = this.rooms.concat(msg.split(' ').slice(1));
           break;
         default:
           ui.log.write('Weird message received. Cannot parse.');
@@ -128,7 +133,7 @@ module.exports = class Client {
         type: 'list',
         name: 'createJoinRoom',
         message: 'What would you like to do?',
-        choices: ['Create a room', 'Join a room']
+        choices: ['Create a room', 'Join a room', 'Quit']
       }).then((answers) => {
         clear();
         switch (answers.createJoinRoom) {
@@ -138,6 +143,9 @@ module.exports = class Client {
           case 'Join a room':
             this.joinRoom();
             break;
+          case 'Quit':
+            this.socket.end();
+            process.exitCode = 0;
         }
       }
     );
@@ -187,34 +195,112 @@ module.exports = class Client {
         default: 0
       }
     ).then((answers) => {
-      clear();
+      if(this.activeRooms.includes(answers.roomName)) {
+        ui.log.write(chalk.red("You're already in this room! Use /switch to change to this room."));
+        this.promptMessaging();
+      }
+      else {
+      this.activeRooms = this.activeRooms.concat(answers.roomName);
       this.socket.write('JOIN ' + answers.roomName + ' ' + this.username);
+      }
     });
   }
+
+  switchRoom() {
+    inquirer.prompt(
+      {
+        type: 'list',
+        name: 'roomName',
+        message: 'What room do you want to switch to?',
+        choices: this.activeRooms,
+        default: 0
+      }
+    ).then((answers) => {
+      this.currentRoom = answers.roomName;
+    });
+  }
+
+  leaveRoom() {
+    inquirer.prompt(
+      {
+        type: 'list',
+        name: 'roomName',
+        message: 'What room do you want to leave?',
+        choices: this.activeRooms,
+        default: 0
+      }
+    ).then((answers) => {
+      //activeRooms.splice(activeRooms.findIndex(roomName => roomName === answers.roomName), 1);
+      this.socket.write('LEAVE ' + answers.roomName + ' ' + this.username);
+      this.socket.write('PRIVMSG ' + this.username + ' ' + this.currentRoom + ' USER HAS LEFT ROOM');
+  });
+}
 
   promptMessaging() {
     inquirer.prompt(
       {
         type: 'input',
-        name: 'privateMessage',
+        name: 'userInput',
         message: this.username + ' > ',
         prefix: ''
       }
     ).then((answers) => {
       let exit = false;
-      if (answers.privateMessage === '/quit') {
-        this.socket.end();
-        process.exitCode = 0;
-        exit = true;
-      }
-      if (!exit) {
-        this.socket.write('PRIVMSG ' + this.username + ' ' + this.currentRoom + ' ' + answers.privateMessage);
-
-        // wait a second before prompting for another message
-        //    helps avoid spamming and keeps the UI looking nice
-        setTimeout(() => {
+      switch(answers.userInput) {
+        case '/quit':
+          this.socket.write('PRIVMSG ' + this.username + ' ' + this.currentRoom + ' USER HAS LEFT SERVER');
+          this.socket.end();
+          process.exitCode = 0;
+         break;
+        case '/list':
+          ui.log.write(this.rooms.toString());
+          setTimeout(() => {
+            this.promptMessaging();
+          }, 1000);
+          break;
+        case '/users':
+          this.socket.write('USERLIST ' + this.currentRoom + ' ' + this.username);
+          break;
+        /*case '/leave':
+            this.leaveRoom();
+            this.promptMessaging();
+            break;*/
+        case '/join':
+          this.joinRoom();
+          break;
+        case '/create':
+          this.createRoom();
+          break;
+        case '/active':
+          ui.log.write(this.activeRooms.toString());
+          setTimeout(() => {
+            this.promptMessaging();
+          }, 1000);
+          break;
+        case '/switch':
+          this.switchRoom();
           this.promptMessaging();
-        }, 1000);
+          break;
+        case '/help':
+          ui.log.write('/quit: leaves all rooms and quits the application.');
+          ui.log.write('/list: lists all rooms on the server.');
+          ui.log.write('/users: lists all users in your current room.');
+          ui.log.write('/join: prompts you to join a new room.');
+          ui.log.write('/create: prompts you to create a new room.');
+          //ui.log.write('/leave: prompts you to leave a room you\'re in.');
+          ui.log.write('/active: lists rooms you are currently in.');
+          ui.log.write('/switch: switches your current room (room you send messages to).');
+          this.promptMessaging();
+          break;
+        default:
+          this.socket.write('PRIVMSG ' + this.username + ' ' + this.currentRoom + ' ' + answers.userInput);
+
+          // wait a second before prompting for another message
+          //    helps avoid spamming and keeps the UI looking nice
+          setTimeout(() => {
+            this.promptMessaging();
+          }, 1000);
+          break;
       }
     });
   }
