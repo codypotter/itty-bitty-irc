@@ -1,6 +1,7 @@
 # itty-bitty-irc
 This project is a VERY simplistic IRC-like protocol implementation.
 The intention is not to fully implement the RFC, but to make something similar to an IRC protocol.
+Created by Cody Potter and Bela Kurzenhauser
 
 ## Getting Started
 ### Node and npm
@@ -58,4 +59,5 @@ node main.js client
 Blam-o, you have web sockets running and a server and client sending messages back and forth.
 
 There is no magic happening here. If you open package.json, you'll see I defined two scripts, those are the scripts you just called. It's simply Node executing the two files. They are communicating on the same host and port.
+
 
