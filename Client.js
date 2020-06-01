@@ -39,6 +39,7 @@ module.exports = class Client {
     this.socket.on('close', () => {
       ui.log.write('Connection is closed. Exiting...');
       process.exitCode = 0;
+      process.exit(0);
     });
 
     this.socket.on('data', (data) => {

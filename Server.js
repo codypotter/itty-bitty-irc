@@ -2,6 +2,9 @@ const net = require('net');
 const Room = require('./Room');
 const User = require('./User');
 const chalk = require('chalk');
+const inquirer = require('inquirer');
+
+let ui = new inquirer.ui.BottomBar();
 
 module.exports = class Server {
 
@@ -13,11 +16,11 @@ module.exports = class Server {
     this.server = net.createServer();
 
     this.server.on('close', () => {
-      console.log(chalk.green('Server is closing...'));
+      ui.log.write(chalk.green('Server is closing...'));
     });
 
     this.server.on('error', err => {
-      console.log(chalk.bgRed('Server ' + err));
+      ui.log.write(chalk.bgRed('Server ' + err));
       let matchingUser = this.users.filter(user => user.socket === socket)
       this.rooms.forEach(room => {
         rooms.members = room.members.filter(member => member !== matchingUser.username);
@@ -25,12 +28,12 @@ module.exports = class Server {
     });
 
     this.server.on('connection', (socket => {
-      console.log(chalk.green('CONNECTED: ' + socket.remoteAddress + ':' + socket.remotePort));
+      ui.log.write(chalk.green('CONNECTED: ' + socket.remoteAddress + ':' + socket.remotePort));
 
       socket.write('ROOMDIR ' + this.rooms.map(room => room.name).join(' '));
 
       socket.on('end', () => {
-        console.log(chalk.green('end received from client.'));
+        ui.log.write(chalk.green('end received from client.'));
 
         // remove user from memory
         let user = this.users.splice(this.users.findIndex(user => user.socket === socket), 1);
@@ -43,11 +46,15 @@ module.exports = class Server {
       });
 
       socket.on('error', (err) => {
-        console.log(chalk.bgRed('Socket ' + err));
+        ui.log.write(chalk.bgRed('Socket ' + err));
+        let user = this.users.splice(this.users.findIndex(user => user.socket === socket), 1);
+        this.rooms.forEach(room => {
+          room.members.splice(room.members.findIndex(member => member === user.username), 1);
+        });
       });
 
       socket.on('data', (data) => {
-        console.log(chalk.bgBlue('Message received: ' + data.toString()));
+        ui.log.write(chalk.bgBlue('Message received: ' + data.toString()));
         const msg = data.toString().trim().split(' ');
         const msgType = msg[0];
 
@@ -55,7 +62,7 @@ module.exports = class Server {
           case 'CREATE':
             const newRoomName = msg[1];
 
-            console.log('creating a room named', newRoomName);
+            ui.log.write('creating a room named', newRoomName);
 
             this.rooms.push(new Room(newRoomName));
             this.users.forEach((user) => {
@@ -66,7 +73,7 @@ module.exports = class Server {
             const roomToJoin = msg[1];
             const userToJoin = msg[2];
 
-            console.log(userToJoin, 'is joining room', roomToJoin);
+            ui.log.write(userToJoin, 'is joining room', roomToJoin);
 
             this.rooms.forEach(room => {
               if (room.name === roomToJoin) {
@@ -80,7 +87,7 @@ module.exports = class Server {
             const newUsername = msg[1];
             const newRealName = msg.slice(2).join(' ');
 
-            console.log('making new user with username:', newUsername, 'and real name:', newRealName);
+            ui.log.write('making new user with username:', newUsername, 'and real name:', newRealName);
 
             this.users.push(new User(newUsername, socket.remoteAddress +':' +  socket.remotePort, newRealName, socket));
             break;
@@ -89,7 +96,7 @@ module.exports = class Server {
             const destinationRoomName = msg[2];
             const text = msg.slice(3).join(' ');
 
-            console.log('privmsg from:', senderUsername, 'was sent to room', destinationRoomName, 'with text', text);
+            ui.log.write('privmsg from:', senderUsername, 'was sent to room', destinationRoomName, 'with text', text);
 
             this.rooms.forEach((room) => {
               if (room.name === destinationRoomName) {
@@ -106,7 +113,7 @@ module.exports = class Server {
           case 'USERLIST':
             const roomName = msg[1];
             const userListing = msg[2];
-            console.log('User ' + userListing + 'querying list from ' + roomName);
+            ui.log.write('User ' + userListing + 'querying list from ' + roomName);
 
             this.rooms.forEach(room => {
               if (room.name === roomName) {
@@ -125,13 +132,86 @@ module.exports = class Server {
             })
             break;*/
           default:
-            console.log(chalk.red('Weird message received. Cannot parse.'));
+            ui.log.write(chalk.red('Weird message received. Cannot parse.'));
         }
       })
     }));
 
     this.server.listen(this.port, this.host);
 
+    this.adminPrompt();
+  }
+
+  adminPrompt() {
+    // inquirer.ui.prompt() is an asynchronous function. The function passed to .then() is called once the
+    // user inputs their answers.
+    inquirer.prompt([
+      {
+        type: 'input',
+        name: 'command',
+        message: ' > ',
+        prefix: ''
+      }
+    ]).then((input) => {
+        const command = input.command.trim().split(' ');
+        switch (command[0]) {
+          case '/kickall':
+
+            this.users.forEach(user => {
+              user.socket.write('PRIVMSG ' + user.username + ' ' + '!!! You have been kicked by the server.');
+              user.socket.destroy();
+            });
+            this.users = [];
+            this.rooms.forEach(room => {
+              room.members = [];
+            })
+            break;
+          case '/kick':
+            const usernameToKick = command[1];
+            if (usernameToKick) {
+              const userToKick = this.users.find(user => user.username === usernameToKick);
+              userToKick.socket.write('PRIVMSG ' + usernameToKick + ' ' + '!!! You have been kicked by the server.');
+              userToKick.socket.destroy();
+              // remove user from the room
+              this.rooms.forEach(room => {
+                room.members = room.members.filter(member => member !== usernameToKick);
+              });
+
+              // remove user from the users array
+              this.users = this.users.filter(user => user.username !== usernameToKick);
+
+            } else {
+              ui.log.write(`usage: /kick <username>`)
+            }
+            break;
+          case '/listrooms':
+            this.rooms.forEach(room => {
+              ui.log.write(room.name + ' containing users:');
+              room.members.forEach(member => {
+                ui.log.write('\t' + member);
+              })
+            })
+            break;
+          case '/listusers':
+            this.users.forEach(user => {
+              ui.log.write(user.username);
+            })
+            break;
+          case '/help':
+            ui.log.write('Command options:');
+            ui.log.write('/kickall -> kicks all connected users');
+            ui.log.write('/kick [username] -> kicks the given user by username');
+            ui.log.write('/listrooms -> outputs all the room names');
+            ui.log.write('/listusers -> outputs all the usernames');
+            break;
+          default:
+            ui.log.write('usage: /[command] or "/help" for help')
+            break;
+        }
+        this.adminPrompt();
+      }
+
+    );
   }
 
 };
