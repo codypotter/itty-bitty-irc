@@ -217,8 +217,10 @@ module.exports = class Client {
   joinRoomCommand(param) {
     if (!this.rooms.includes(param)) {
       ui.log.write(chalk.red('That room doesn\'t exist!'));
+      this.promptMessaging();
     } else if (this.activeRooms.includes(param)) {
-      ui.log.write(chalk.red('You\'re already in this room! Use /switch to change to this room.'));
+      this.currentRoom = param;
+      this.promptMessaging();
     } else {
       ui.log.write(chalk.blue(param));
       this.socket.write('JOIN ' + param + ' ' + this.username);
