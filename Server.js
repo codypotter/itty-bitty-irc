@@ -14,6 +14,8 @@ module.exports = class Server {
     this.rooms = [];
     this.users = [];
     this.server = net.createServer();
+    //it's good practice for the server to have a default chat room
+    this.rooms.push(new Room('General'));
 
     this.server.on('close', () => {
       ui.log.write(chalk.green('Server is closing...'));
@@ -23,7 +25,7 @@ module.exports = class Server {
       ui.log.write(chalk.bgRed('Server ' + err));
       let matchingUser = this.users.filter(user => user.socket === socket)
       this.rooms.forEach(room => {
-        rooms.members = room.members.filter(member => member !== matchingUser.username);
+        room.members = room.members.filter(member => member !== matchingUser.username);
       });
     });
 
@@ -79,7 +81,7 @@ module.exports = class Server {
               if (room.name === roomToJoin) {
                 room.members.push(userToJoin);
                 socket.write('RPLTOPIC ' + room.name);
-                socket.write('RPLNAMEREPLY ' + room.members.join(' '))
+                socket.write('RPLNAMEREPLY ' + room.members.join(' '));
               }
             });
             break;
@@ -91,12 +93,12 @@ module.exports = class Server {
 
             this.users.push(new User(newUsername, socket.remoteAddress +':' +  socket.remotePort, newRealName, socket));
             break;
-          case 'PRIVMSG':
+          case 'CHATMSG':
             const senderUsername = msg[1];
             const destinationRoomName = msg[2];
             const text = msg.slice(3).join(' ');
 
-            ui.log.write('privmsg from:', senderUsername, 'was sent to room', destinationRoomName, 'with text', text);
+            ui.log.write('chatmsg from:', senderUsername, 'was sent to room', destinationRoomName, 'with text', text);
 
             this.rooms.forEach((room) => {
               if (room.name === destinationRoomName) {
@@ -108,7 +110,7 @@ module.exports = class Server {
                   });
                 });
               }
-            })
+            });
             break;
           case 'USERLIST':
             const roomName = msg[1];
@@ -121,16 +123,17 @@ module.exports = class Server {
               }
             });
             break;
-          /*case 'LEAVE':
+          case 'LEAVE':
             const roomToLeave = msg[1];
             const userLeaving = msg[2];
-            console.log('User ' + userLeaving + 'leaving room ' + roomToLeave);
+            console.log('User ' + userLeaving + ' leaving room ' + roomToLeave);
             this.rooms.forEach(room => {
               if (room.name === roomToLeave) {
-                room.members.splice(room.members.findIndex(member => member === userLeaving.username), 1);
+                room.members = room.members.filter(member => member !== userLeaving);
               }
-            })
-            break;*/
+            });
+            socket.write('LEAVEREPLY');
+            break;
           default:
             ui.log.write(chalk.red('Weird message received. Cannot parse.'));
         }
@@ -156,9 +159,8 @@ module.exports = class Server {
         const command = input.command.trim().split(' ');
         switch (command[0]) {
           case '/kickall':
-
             this.users.forEach(user => {
-              user.socket.write('PRIVMSG ' + user.username + ' ' + '!!! You have been kicked by the server.');
+              user.socket.write('CHATMSG ' + user.username + ' ' + '!!! You have been kicked by the server.');
               user.socket.destroy();
             });
             this.users = [];
@@ -170,7 +172,7 @@ module.exports = class Server {
             const usernameToKick = command[1];
             if (usernameToKick) {
               const userToKick = this.users.find(user => user.username === usernameToKick);
-              userToKick.socket.write('PRIVMSG ' + usernameToKick + ' ' + '!!! You have been kicked by the server.');
+              userToKick.socket.write('CHATMSG ' + usernameToKick + ' ' + '!!! You have been kicked by the server.');
               userToKick.socket.destroy();
               // remove user from the room
               this.rooms.forEach(room => {
@@ -183,6 +185,18 @@ module.exports = class Server {
             } else {
               ui.log.write(`usage: /kick <username>`)
             }
+            break;
+          case '/kill':
+            this.users.forEach(user => {
+              user.socket.write('CHATMSG ' + user.username + ' ' + '!!! You have been kicked by the server.');
+              user.socket.destroy();
+            });
+            this.users = [];
+            this.rooms.forEach(room => {
+              room.members = [];
+            })
+            process.exitCode = 0;
+            process.exit(0);
             break;
           case '/listrooms':
             this.rooms.forEach(room => {
@@ -201,6 +215,7 @@ module.exports = class Server {
             ui.log.write('Command options:');
             ui.log.write('/kickall -> kicks all connected users');
             ui.log.write('/kick [username] -> kicks the given user by username');
+            ui.log.write('/kill -> kills server process');
             ui.log.write('/listrooms -> outputs all the room names');
             ui.log.write('/listusers -> outputs all the usernames');
             break;
