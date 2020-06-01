@@ -49,12 +49,13 @@ module.exports = class Client {
       //console.log(chalk.bgBlue(msg));
 
       switch (msgType) {
-        case 'PRIVMSG':
+        case 'CHATMSG':
           ui.log.write(chalk.blue(msg.split(' ')[1]) + ' (' + chalk.green(msg.split(' ')[2]) + '): ' + msg.split(' ').slice(3).join(' '));
           break;
         case 'RPLTOPIC':
           ui.log.write(chalk.green('Welcome to ' + chalk.bgGreen.black(msg.split(' ')[1]) + '!'));
           this.currentRoom = msg.split(' ')[1];
+          this.activeRooms = this.activeRooms.concat(msg.split(' ')[1]);
           break;
         case 'RPLNAMEREPLY':
           ui.log.write(chalk.green('Current users in room: ') + msg.split(' ').slice(1).join(' '));
@@ -64,6 +65,9 @@ module.exports = class Client {
           break;
         case 'USERLIST':
           ui.log.write('Current users in room: ' + msg.split(' ').slice(1).join(' '));
+          this.promptMessaging();
+          break;
+        case 'LEAVEREPLY':
           this.promptMessaging();
           break;
         case 'ROOMDIR':
@@ -160,10 +164,14 @@ module.exports = class Client {
         message: 'What do you want to name your room?',
         default: 'roomname',
         validate: (val) => {
-          if (val.match(/^\S*$/)) {
+          if (val.match(/^\S*$/) && !this.rooms.includes(val)) {
             return true;
           } else {
-            return 'one word, no spaces allowed'
+            if (this.rooms.includes(val)) {
+              return 'that room already exists!';
+            } else {
+            return 'one word, no spaces allowed';
+            }
           }
         }
       },
@@ -201,41 +209,21 @@ module.exports = class Client {
         this.promptMessaging();
       }
       else {
-      this.activeRooms = this.activeRooms.concat(answers.roomName);
-      this.socket.write('JOIN ' + answers.roomName + ' ' + this.username);
+        this.socket.write('JOIN ' + answers.roomName + ' ' + this.username);
       }
     });
   }
 
-  switchRoom() {
-    inquirer.prompt(
-      {
-        type: 'list',
-        name: 'roomName',
-        message: 'What room do you want to switch to?',
-        choices: this.activeRooms,
-        default: 0
-      }
-    ).then((answers) => {
-      this.currentRoom = answers.roomName;
-    });
+  joinRoomCommand(param) {
+    if (!this.rooms.includes(param)) {
+      ui.log.write(chalk.red('That room doesn\'t exist!'));
+    } else if (this.activeRooms.includes(param)) {
+      ui.log.write(chalk.red('You\'re already in this room! Use /switch to change to this room.'));
+    } else {
+      ui.log.write(chalk.blue(param));
+      this.socket.write('JOIN ' + param + ' ' + this.username);
+    }
   }
-
-  leaveRoom() {
-    inquirer.prompt(
-      {
-        type: 'list',
-        name: 'roomName',
-        message: 'What room do you want to leave?',
-        choices: this.activeRooms,
-        default: 0
-      }
-    ).then((answers) => {
-      //activeRooms.splice(activeRooms.findIndex(roomName => roomName === answers.roomName), 1);
-      this.socket.write('LEAVE ' + answers.roomName + ' ' + this.username);
-      this.socket.write('PRIVMSG ' + this.username + ' ' + this.currentRoom + ' USER HAS LEFT ROOM');
-  });
-}
 
   promptMessaging() {
     inquirer.prompt(
@@ -246,56 +234,114 @@ module.exports = class Client {
         prefix: ''
       }
     ).then((answers) => {
-      let exit = false;
-      switch(answers.userInput) {
-        case '/quit':
-          this.socket.write('PRIVMSG ' + this.username + ' ' + this.currentRoom + ' USER HAS LEFT SERVER');
-          this.socket.end();
-          process.exitCode = 0;
-         break;
-        case '/list':
-          ui.log.write(this.rooms.toString());
-          setTimeout(() => {
-            this.promptMessaging();
-          }, 1000);
-          break;
-        case '/users':
-          this.socket.write('USERLIST ' + this.currentRoom + ' ' + this.username);
-          break;
-        /*case '/leave':
-            this.leaveRoom();
-            this.promptMessaging();
-            break;*/
-        case '/join':
-          this.joinRoom();
-          break;
-        case '/create':
-          this.createRoom();
-          break;
+      const userMsg = answers.userInput.toString().trim().split(' ');
+      const userMsgType = userMsg[0];
+      const param = userMsg[1];
+      const text = userMsg.slice(1).join(' ');
+
+      switch(userMsgType) {
+        //Lists all active rooms
         case '/active':
           ui.log.write(this.activeRooms.toString());
           setTimeout(() => {
             this.promptMessaging();
           }, 1000);
           break;
-        case '/switch':
-          this.switchRoom();
-          this.promptMessaging();
-          break;
-        case '/help':
-          ui.log.write('/quit: leaves all rooms and quits the application.');
-          ui.log.write('/list: lists all rooms on the server.');
-          ui.log.write('/users: lists all users in your current room.');
-          ui.log.write('/join: prompts you to join a new room.');
-          ui.log.write('/create: prompts you to create a new room.');
-          //ui.log.write('/leave: prompts you to leave a room you\'re in.');
-          ui.log.write('/active: lists rooms you are currently in.');
-          ui.log.write('/switch: switches your current room (room you send messages to).');
-          this.promptMessaging();
-          break;
-        default:
-          this.socket.write('PRIVMSG ' + this.username + ' ' + this.currentRoom + ' ' + answers.userInput);
 
+        //Sends a message to all active rooms @everyone
+        case '/all':
+          this.activeRooms.forEach(roomname => {
+            this.socket.write('CHATMSG ' + this.username + ' ' + roomname + ' ' + text);
+          });
+          setTimeout(() => {
+            this.promptMessaging();
+          }, 1000);
+          break;
+        
+        //Creates a room
+        case '/create':
+          if (this.rooms.includes(param)) {
+            ui.log.write(chalk.red('That room already exists!'));
+          } else {
+            this.socket.write('CREATE ' + param);
+          }
+          this.promptMessaging();
+          break;
+        
+        //Joins selected room
+        case '/join':
+          this.joinRoomCommand(param);
+          break;
+        
+        //Leaves selected room
+        case '/leave':
+          if (!this.rooms.includes(param)) {
+            ui.log.write(chalk.red('That room doesn\'t exist!'));
+            this.promptMessaging();
+          } else if (!this.activeRooms.includes(param)) {
+            ui.log.write(chalk.red('You aren\'t in this room!'));
+            this.promptMessaging();
+          } else {
+            if (param == this.currentRoom) {
+              ui.log.write(chalk.green('You have left ' + chalk.yellow(param) + '. Please switch to an active room or join a new room.'));
+              this.currentRoom = null;
+            }
+            this.activeRooms = this.activeRooms.filter(room => room !== param);
+            this.socket.write('LEAVE ' + param + ' ' + this.username);
+          }
+          break;
+        
+        //Lists rooms on server
+        case '/list':
+          ui.log.write(this.rooms.toString());
+          setTimeout(() => {
+            this.promptMessaging();
+          }, 1000);
+          break;
+        
+        //Quits application
+        case '/quit':
+          this.socket.write('CHATMSG ' + this.username + ' ' + this.currentRoom + ' USER HAS LEFT SERVER');
+          this.socket.end();
+          process.exitCode = 0;
+         break;
+        
+        //Switches currentRoom variable
+        case '/switch':
+          if (!this.rooms.includes(param)) {
+            ui.log.write(chalk.red('That room doesn\'t exist!'));
+          } else if (!this.activeRooms.includes(param)) {
+            ui.log.write(chalk.red('You\'re not in that room!  Please join before switching.'));
+          } else {
+            this.currentRoom = param;
+          }
+          this.promptMessaging();
+          break;
+        
+        //Prints out list of users in current room
+        case '/users':
+          this.socket.write('USERLIST ' + this.currentRoom + ' ' + this.username);
+          break;
+        
+        //Prints out list of viable commands
+        case '/help':
+          ui.log.write('Client commands: ');
+          ui.log.write('/active: lists rooms you are currently in.');
+          ui.log.write('/all [message]: sends a message to all rooms you are currently in.');
+          ui.log.write('/create [roomname]: creates a new room.');
+          ui.log.write('/join [roomname]: joins a new room.');
+          ui.log.write('/leave [roomname]: leaves a room you\'re in and prompts to create or join a new room.');
+          ui.log.write('/list: lists all rooms on the server.');
+          ui.log.write('/quit: leaves all rooms and quits the application.');
+          ui.log.write('/switch [roomname]: switches your current room (room you send messages to).');
+          ui.log.write('/users: lists all users in your current room.');
+          this.promptMessaging();
+          break;
+
+        default:
+          if (this.currentRoom != null) {
+            this.socket.write('CHATMSG ' + this.username + ' ' + this.currentRoom + ' ' + answers.userInput);
+          }
           // wait a second before prompting for another message
           //    helps avoid spamming and keeps the UI looking nice
           setTimeout(() => {
