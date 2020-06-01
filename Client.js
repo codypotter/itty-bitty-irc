@@ -222,7 +222,6 @@ module.exports = class Client {
       this.currentRoom = param;
       this.promptMessaging();
     } else {
-      ui.log.write(chalk.blue(param));
       this.socket.write('JOIN ' + param + ' ' + this.username);
     }
   }
@@ -264,10 +263,11 @@ module.exports = class Client {
         case '/create':
           if (this.rooms.includes(param)) {
             ui.log.write(chalk.red('That room already exists!'));
+            this.promptMessaging();
           } else {
             this.socket.write('CREATE ' + param);
+            this.socket.write('JOIN ' + param + ' ' + this.username);
           }
-          this.promptMessaging();
           break;
         
         //Joins selected room
@@ -312,12 +312,13 @@ module.exports = class Client {
         case '/switch':
           if (!this.rooms.includes(param)) {
             ui.log.write(chalk.red('That room doesn\'t exist!'));
+            this.promptMessaging();
           } else if (!this.activeRooms.includes(param)) {
-            ui.log.write(chalk.red('You\'re not in that room!  Please join before switching.'));
+            this.socket.write('JOIN ' + param + ' ' + this.username);
           } else {
             this.currentRoom = param;
+            this.promptMessaging();
           }
-          this.promptMessaging();
           break;
         
         //Prints out list of users in current room
