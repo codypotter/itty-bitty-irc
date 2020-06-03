@@ -32,7 +32,7 @@ module.exports = class Server {
     this.server.on('connection', (socket => {
       ui.log.write(chalk.green('CONNECTED: ' + socket.remoteAddress + ':' + socket.remotePort));
 
-      socket.write('ROOMDIR ' + this.rooms.map(room => room.name).join(' '));
+      socket.write('ROOMDIR ' + this.rooms.map(room => room.name).join(' ') + '\n');
 
       socket.on('end', () => {
         ui.log.write(chalk.green('end received from client.'));
@@ -57,87 +57,98 @@ module.exports = class Server {
 
       socket.on('data', (data) => {
         ui.log.write(chalk.bgBlue('Message received: ' + data.toString()));
-        const msg = data.toString().trim().split(' ');
-        const msgType = msg[0];
 
-        switch (msgType) {
-          case 'CREATE':
-            const newRoomName = msg[1];
+        const messagesArray = data.toString().split('\n');
 
-            ui.log.write('creating a room named', newRoomName);
+        messagesArray.forEach(message => {
+          // messages split on newlines will sometimes send empty messages
+          if (message === '') { return; }
 
-            this.rooms.push(new Room(newRoomName));
-            this.users.forEach((user) => {
-              user.socket.write('ROOMDIR ' + newRoomName);
-            });
-            break;
-          case 'JOIN':
-            const roomToJoin = msg[1];
-            const userToJoin = msg[2];
+          // separate the message into array of words for easier parsing
+          const tokens = message.split(' ');
 
-            ui.log.write(userToJoin, 'is joining room', roomToJoin);
+          // first word is the message type
+          const msgType = tokens[0];
 
-            this.rooms.forEach(room => {
-              if (room.name === roomToJoin) {
-                room.members.push(userToJoin);
-                socket.write('RPLTOPIC ' + room.name);
-                socket.write('RPLNAMEREPLY ' + room.members.join(' '));
-              }
-            });
-            break;
-          case 'USER':
-            const newUsername = msg[1];
-            const newRealName = msg.slice(2).join(' ');
+          switch (msgType) {
+            case 'CREATE':
+              const newRoomName = tokens[1];
 
-            ui.log.write('making new user with username:', newUsername, 'and real name:', newRealName);
+              ui.log.write('creating a room named', newRoomName);
 
-            this.users.push(new User(newUsername, socket.remoteAddress +':' +  socket.remotePort, newRealName, socket));
-            break;
-          case 'CHATMSG':
-            const senderUsername = msg[1];
-            const destinationRoomName = msg[2];
-            const text = msg.slice(3).join(' ');
+              this.rooms.push(new Room(newRoomName));
+              this.users.forEach((user) => {
+                user.socket.write('ROOMDIR ' + newRoomName + '\n');
+              });
+              break;
+            case 'JOIN':
+              const roomToJoin = tokens[1];
+              const userToJoin = tokens[2];
 
-            ui.log.write('chatmsg from:', senderUsername, 'was sent to room', destinationRoomName, 'with text', text);
+              ui.log.write(userToJoin, 'is joining room', roomToJoin);
 
-            this.rooms.forEach((room) => {
-              if (room.name === destinationRoomName) {
-                room.members.forEach((member) => {
-                  this.users.forEach(user => {
-                    if (user.username === member) {
-                      user.socket.write(msg.join(' '));
-                    }
+              this.rooms.forEach(room => {
+                if (room.name === roomToJoin) {
+                  room.members.push(userToJoin);
+                  socket.write('RPLTOPIC ' + room.name + '\n');
+                  socket.write('RPLNAMEREPLY ' + room.members.join(' ') + '\n');
+                }
+              });
+              break;
+            case 'USER':
+              const newUsername = tokens[1];
+              const newRealName = tokens.slice(2).join(' ');
+
+              ui.log.write('making new user with username: '+ newUsername + ' and real name: ' + newRealName);
+
+              this.users.push(new User(newUsername, socket.remoteAddress +':' +  socket.remotePort, newRealName, socket));
+              break;
+            case 'CHATMSG':
+              const senderUsername = tokens[1];
+              const destinationRoomName = tokens[2];
+              const text = tokens.slice(3).join(' ');
+
+              ui.log.write('chatmsg from: ' + senderUsername + ' was sent to room ' + destinationRoomName + ' with text: ' + text);
+
+              this.rooms.forEach((room) => {
+                if (room.name === destinationRoomName) {
+                  room.members.forEach((member) => {
+                    this.users.forEach(user => {
+                      if (user.username === member) {
+                        user.socket.write(tokens.join(' ') + '\n');
+                      }
+                    });
                   });
-                });
-              }
-            });
-            break;
-          case 'USERLIST':
-            const roomName = msg[1];
-            const userListing = msg[2];
-            ui.log.write('User ' + userListing + 'querying list from ' + roomName);
+                }
+              });
+              break;
+            case 'USERLIST':
+              const roomName = tokens[1];
+              const userListing = tokens[2];
+              ui.log.write('User ' + userListing + 'querying list from ' + roomName);
 
-            this.rooms.forEach(room => {
-              if (room.name === roomName) {
-                socket.write('USERLIST ' + room.members.join(' '))
-              }
-            });
-            break;
-          case 'LEAVE':
-            const roomToLeave = msg[1];
-            const userLeaving = msg[2];
-            console.log('User ' + userLeaving + ' leaving room ' + roomToLeave);
-            this.rooms.forEach(room => {
-              if (room.name === roomToLeave) {
-                room.members = room.members.filter(member => member !== userLeaving);
-              }
-            });
-            socket.write('LEAVEREPLY');
-            break;
-          default:
-            ui.log.write(chalk.red('Weird message received. Cannot parse.'));
-        }
-      })
+              this.rooms.forEach(room => {
+                if (room.name === roomName) {
+                  socket.write('USERLIST ' + room.members.join(' ') + '\n')
+                }
+              });
+              break;
+            case 'LEAVE':
+              const roomToLeave = tokens[1];
+              const userLeaving = tokens[2];
+              console.log('User ' + userLeaving + ' leaving room ' + roomToLeave);
+              this.rooms.forEach(room => {
+                if (room.name === roomToLeave) {
+                  room.members = room.members.filter(member => member !== userLeaving);
+                }
+              });
+              socket.write('LEAVEREPLY' + '\n');
+              break;
+            default:
+              ui.log.write(chalk.red('Weird message received. Cannot parse.'));
+          }
+        });
+      });
     }));
 
     this.server.listen(this.port, this.host);
@@ -160,7 +171,7 @@ module.exports = class Server {
         switch (command[0]) {
           case '/kickall':
             this.users.forEach(user => {
-              user.socket.write('CHATMSG ' + user.username + ' ' + '!!! You have been kicked by the server.');
+              user.socket.write('CHATMSG ' + user.username + ' ' + '!!! You have been kicked by the server.' + '\n');
               user.socket.destroy();
             });
             this.users = [];
@@ -172,7 +183,7 @@ module.exports = class Server {
             const usernameToKick = command[1];
             if (usernameToKick) {
               const userToKick = this.users.find(user => user.username === usernameToKick);
-              userToKick.socket.write('CHATMSG ' + usernameToKick + ' ' + '!!! You have been kicked by the server.');
+              userToKick.socket.write('CHATMSG ' + usernameToKick + ' ' + '!!! You have been kicked by the server.' + '\n');
               userToKick.socket.destroy();
               // remove user from the room
               this.rooms.forEach(room => {
@@ -188,7 +199,7 @@ module.exports = class Server {
             break;
           case '/kill':
             this.users.forEach(user => {
-              user.socket.write('CHATMSG ' + user.username + ' ' + '!!! You have been kicked by the server.');
+              user.socket.write('CHATMSG ' + user.username + ' ' + '!!! You have been kicked by the server.' + '\n');
               user.socket.destroy();
             });
             this.users = [];
