@@ -17,5 +17,8 @@
     "commander": "^5.1.0",
     "figlet": "^1.4.0",
     "inquirer": "^7.1.0"
+  },
+  "devDependencies": {
+    "jsdoc": "^3.6.4"
   }
 }
