@@ -299,7 +299,7 @@ class Client {
           break;
         
         //Creates a room
-        case '/promptCreateRoom':
+        case '/create':
           if (this.rooms.includes(param)) {
             ui.log.write(chalk.red('That room already exists!'));
             this.promptMessaging();
@@ -392,7 +392,7 @@ class Client {
     ui.log.write('Client commands: ');
     ui.log.write('/active: lists rooms you are currently in.');
     ui.log.write('/all [message]: sends a message to all rooms you are currently in.');
-    ui.log.write('/promptCreateRoom [roomname]: creates a new room.');
+    ui.log.write('/create [roomname]: creates a new room.');
     ui.log.write('/join [roomname]: joins a new room.');
     ui.log.write('/leave [roomname]: leaves a room you\'re in and prompts to promptCreateRoom or join a new room.');
     ui.log.write('/list: lists all rooms on the server.');
