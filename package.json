@@ -11,7 +11,7 @@
   "author": "Cody Potter and Bela Kurzenhauser",
   "license": "ISC",
   "dependencies": {
-    "async": "^3.2.0",
+    "async": "^3.2.2",
     "chalk": "^4.0.0",
     "clear": "^0.1.0",
     "commander": "^5.1.0",
